@@ -1,18 +1,24 @@
-## Unity ##
+## UNITY STANDARD ##
+# Normalize line endings
+* text=auto
 
-*.cs diff=csharp text
-*.cginc text
-*.shader text
-
-*.mat merge=unityyamlmerge eol=lf
+# Unity YAML-serialized files (safe to merge with Unity SmartMerge)
 *.anim merge=unityyamlmerge eol=lf
-*.unity merge=unityyamlmerge eol=lf
-*.prefab merge=unityyamlmerge eol=lf
-*.physicsMaterial2D merge=unityyamlmerge eol=lf
-*.physicMaterial merge=unityyamlmerge eol=lf
 *.asset merge=unityyamlmerge eol=lf
-*.meta merge=unityyamlmerge eol=lf
 *.controller merge=unityyamlmerge eol=lf
+*.mat merge=unityyamlmerge eol=lf
+*.meta text merge=keepMine eol=lf
+*.physicMaterial merge=unityyamlmerge eol=lf
+*.physicsMaterial2D merge=unityyamlmerge eol=lf
+*.prefab merge=unityyamlmerge eol=lf
+*.unity merge=unityyamlmerge eol=lf
+
+# C# scripts
+*.cs diff=csharp
+
+# Shaders & CG
+*.shader text
+*.cginc text
 
 
 ## git-lfs ##
