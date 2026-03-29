@@ -51,11 +51,13 @@ public class Cooldown : Decorator
         if (UnityEngine.Time.time < nextAllowedTime)
             return NodeStatus.FAILURE;
 
+        // Run the child (the Attack)
         NodeStatus status = child.Tick();
-        if (status == NodeStatus.SUCCESS)
-        {
-            nextAllowedTime = UnityEngine.Time.time + cooldownDuration;
-        }
+
+        // CHANGE: Start the cooldown as long as the child didn't fail 
+        // or simply every time it's called!
+        nextAllowedTime = UnityEngine.Time.time + cooldownDuration;
+
         return status;
     }
 }
