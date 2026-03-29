@@ -1,11 +1,13 @@
 public class ActionNode : Node
 {
-    private System.Action action;
-    public ActionNode(System.Action task) { action = task; }
+    // Func<NodeStatus> means: "A function that returns a NodeStatus"
+    private System.Func<NodeStatus> action;
+
+    public ActionNode(System.Func<NodeStatus> task) { action = task; }
 
     public override NodeStatus Tick()
     {
-        action(); // Execute the task (e.g., AttackPlayer())
-        return NodeStatus.SUCCESS; // Or return RUNNING if it takes time
+        // Execute the task and return whatever the task tells us (SUCCESS or RUNNING)
+        return action();
     }
 }
