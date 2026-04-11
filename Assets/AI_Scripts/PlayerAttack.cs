@@ -17,24 +17,26 @@ public class PlayerAttack : MonoBehaviour
 
     void PerformAttack()
     {
-        // Fire a ray from the center of the screen (where the mouse is)
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        // FIX: Fire from the center of the viewport (camera lens) 
+        // instead of the mouse cursor position
+        Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         RaycastHit hit;
+
+        // Visualize the ray in the Scene view so you can see if it's hitting
+        Debug.DrawRay(ray.origin, ray.direction * attackRange, Color.red, 1f);
 
         if (Physics.Raycast(ray, out hit, attackRange, bossLayer))
         {
-            // Check if what we hit has the NPCController
             NPCController boss = hit.collider.GetComponent<NPCController>();
-
             if (boss != null)
             {
-                Debug.Log("<color=cyan>Player: Direct Hit on Boss!</color>");
+                Debug.Log("<color=green>Direct Hit on Boss!</color>");
                 boss.TakeDamage(damageDealt);
             }
         }
         else
         {
-            Debug.Log("Player: Missed!");
+            Debug.Log("Missed!");
         }
     }
 }

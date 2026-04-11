@@ -19,30 +19,35 @@ public class BossBehavior : MonoBehaviour
         // --- BUILDING THE TREE ACCORDING TO YOUR GRAPH ---
         rootNode = new Selector(new List<Node>
         {
-            // 1. SURVIVAL BRANCH (Priority 1)
-            new Sequence(new List<Node> {
-                new ConditionNode(() => npc.bossNpcHealth <= npc.lowHealthThreshold),
-                new ActionNode(() => {
-                    Debug.Log("<color=red>BT Logic: Health Low! Checking Safe Area.</color>");
-                    if (!npc.beenToSafeArea) {
-                        npc.currentState = "Survival";
-                        npc.currentAction = "Retreating";
-                        steering.Seek(npc.safeAreaPosition);
-                        
-                        // If we haven't reached the point yet, keep running
-                        if (Vector3.Distance(transform.position, npc.safeAreaPosition) > 2f) {
-                            return NodeStatus.RUNNING;
-                        }
-                
-                        // We arrived!
-                        npc.beenToSafeArea = true;
-                        npc.bossNpcHealth = 100f;
-                        npc.SwitchToLongRange();
-                        return NodeStatus.SUCCESS;
-                    }
-                    return NodeStatus.SUCCESS; // Already been there, move to next task
-                })
-            }),
+// 1. SURVIVAL BRANCH (Priority 1)
+new Sequence(new List<Node> {
+    // Only enter this branch if health is low AND we haven't retreated yet
+    new ConditionNode(() => npc.bossNpcHealth <= npc.lowHealthThreshold && !npc.beenToSafeArea),
+new ActionNode(() => {
+    if (!npc.beenToSafeArea) {
+        npc.currentState = "Survival";
+        npc.currentAction = "Retreating";
+
+        float distToSafe = Vector3.Distance(transform.position, npc.safeAreaPosition);
+        steering.Seek(npc.safeAreaPosition);
+
+        // 1. If still far, keep running
+        // Increase this to 2.5f or 3f to make it easier to "arrive"
+        if (distToSafe > 2.5f) {
+            return NodeStatus.RUNNING;
+        }
+
+        // 2. We arrived! (This code ONLY runs if dist <= 2.5f)
+        Debug.Log("<color=cyan>BT Logic: Arrived at Safe Area! Switching Phase...</color>");
+        npc.beenToSafeArea = true;
+        npc.bossNpcHealth = 100f;
+        npc.SwitchToLongRange(); // This should now fire
+        
+        return NodeStatus.SUCCESS;
+    }
+    return NodeStatus.SUCCESS;
+})
+}),
                 // 2. MONEY BRANCH
                 new Sequence(new List<Node> {
                     new ConditionNode(() => npc.moneyVisible),
@@ -50,8 +55,8 @@ public class BossBehavior : MonoBehaviour
                         npc.currentState = "Interact";
                         npc.currentAction = "Collecting Money";
                 
-                        steering.Seek(npc.currentMoneyPos); 
-                        
+                        steering.Seek(npc.currentMoneyPos);
+                        Debug.Log("<color=green>Action: Money Collected</color>");
                         // Only call the interaction function if we are close enough
                         if (Vector3.Distance(transform.position, npc.currentMoneyPos) < 1.2f) {
                             npc.CollectMoney(); // <--- Clean API call
