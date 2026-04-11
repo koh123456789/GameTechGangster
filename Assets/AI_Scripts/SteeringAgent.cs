@@ -46,6 +46,8 @@ public class SteeringAgent : MonoBehaviour
 
     private void ApplyForce(Vector3 force)
     {
+        if (!this.enabled) return;
+
         force = Vector3.ClampMagnitude(force, maxForce);
         velocity = Vector3.ClampMagnitude(velocity + force * Time.deltaTime, maxSpeed);
         velocity.y = 0;
@@ -150,14 +152,14 @@ public class SteeringAgent : MonoBehaviour
 
     public void Stop()
     {
-        // 1. Clear the stored velocity immediately
         velocity = Vector3.zero;
-
-        // 2. Tell the NavMeshAgent to stop moving
         if (agent != null && agent.isOnNavMesh)
         {
-            agent.isStopped = true; // This freezes the agent's pathfinding
+            agent.isStopped = true;
             agent.velocity = Vector3.zero;
+            // Reset these so NavMeshAgent can drive itself again
+            agent.updatePosition = true;
+            agent.updateRotation = true;
         }
     }
 

@@ -37,7 +37,7 @@ public class NPCController : MonoBehaviour
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, moneyDetectionRadius, moneyLayer);
         int layerIndex = (int)Mathf.Log(moneyLayer.value, 2);
 
-        Debug.Log("Sensing Money... Found: " + hitColliders.Length + " objects on layer: " + LayerMask.LayerToName(layerIndex));
+        //Debug.Log("Sensing Money... Found: " + hitColliders.Length + " objects on layer: " + LayerMask.LayerToName(layerIndex));
         if (hitColliders.Length > 0)
         {
             moneyVisible = true;
@@ -80,7 +80,7 @@ public class NPCController : MonoBehaviour
                 // 2. Raycast check
                 if (Physics.Raycast(eyePos, direction, out RaycastHit hit, viewDistance))
                 {
-                    Debug.Log("Ray hit: " + hit.collider.gameObject.name);
+                    //Debug.Log("Ray hit: " + hit.collider.gameObject.name);
 
                     if (hit.collider.CompareTag("Player"))
                     {
@@ -187,13 +187,20 @@ public class NPCController : MonoBehaviour
     public void TakeDamage(float amount)
     {
         bossNpcHealth -= amount;
-        damageReceived = true; // This "Wakes Up" the Combat Branch in the BT
 
-        Debug.Log($"<color=red>Boss Hit! Health: {bossNpcHealth}</color>");
-
-        // Optional: Reset damageReceived after 5 seconds if the player stays hidden
-        CancelInvoke("ResetDamageFlag");
-        Invoke("ResetDamageFlag", 5f);
+        if (bossNpcHealth <= lowHealthThreshold)
+        {
+            // CLEAR EVERYTHING: Stop searching, stop visible player tracking
+            damageReceived = false;
+            playerVisible = false;
+            CancelInvoke("ResetDamageFlag");
+        }
+        else
+        {
+            damageReceived = true;
+            CancelInvoke("ResetDamageFlag");
+            Invoke("ResetDamageFlag", 5f);
+        }
     }
 
     private void ResetDamageFlag()
