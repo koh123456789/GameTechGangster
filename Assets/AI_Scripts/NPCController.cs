@@ -32,6 +32,15 @@ public class NPCController : MonoBehaviour
     public bool moneyVisible;
     public Vector3 currentMoneyPos;
 
+    [Header("Manual Override")]
+    public bool isManualMode = false;
+    public int forcedStateIndex = 0; // 0 = Auto, 1 = Patrol, 2 = Combat, 3 = Survival
+
+    [Header("Combat Settings")]
+    public float closeRangeDamage = 10f;
+    public float longRangeDamage = 20f;
+    public float currentDamage = 10f; // This is what DealDamageToPlayer will use
+
     public void UpdateMoneySensing()
     {
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, moneyDetectionRadius, moneyLayer);
@@ -123,12 +132,11 @@ public class NPCController : MonoBehaviour
     }
 
 
-    public void DealDamageToPlayer(float amount)
+    public void DealDamageToPlayer()
     {
         // Subtract from the variable that lives ON THIS SCRIPT
-        playerHealth -= amount;
-
-        Debug.Log("<color=red>BOSS ATTACK: Player hit! Health is now: " + playerHealth + "</color>");
+        playerHealth -= currentDamage;
+        Debug.Log($"Boss dealt {currentDamage} damage!");
 
         // Check for Game Over
         if (playerHealth <= 0)
