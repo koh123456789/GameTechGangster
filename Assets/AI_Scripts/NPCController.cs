@@ -3,15 +3,18 @@ using UnityEngine;
 public class NPCController : MonoBehaviour
 {
     [Header("Boss Stats")]
+    public float maxHealth = 1000f; // Set default to 100
     public float bossNpcHealth = 100f;
     public float lowHealthThreshold = 30f;
-    public float attackRange = 5f;
+    public float attackRange = 2.5f;
+    public float phaseTwoAttackRange = 12f;
 
     [Header("Player Status")]
     public float playerHealth = 100f;
     public float playerDistance;
     public bool playerVisible;
     public bool damageReceived;
+    public float memoryTime = 5f;
 
     [Header("Environmental Status")]
     public Transform safeAreaTransform;
@@ -40,6 +43,52 @@ public class NPCController : MonoBehaviour
     public float closeRangeDamage = 10f;
     public float longRangeDamage = 20f;
     public float currentDamage = 10f; // This is what DealDamageToPlayer will use
+
+    [Header("Projectile Settings (Phase 2)")]
+    public GameObject projectilePrefab;
+    public Transform firePoint;
+    public float projectileSpeed = 20f;
+
+    [Header("Weapon Visuals")]
+    public GameObject meleeWeapon;      // Drag your Sword here
+    public GameObject longRangeWeapon;  // Drag your Gun/Bow here
+    private SteeringAgent steering;
+    private Animator anim;
+
+    [Header("Phase 2 Settings")]
+    public bool isUpgraded = false;
+
+    void Awake()
+    {
+        // Initialize current health to max at the very start
+        bossNpcHealth = maxHealth;
+    }
+
+    // Call this ONCE when arriving at the safe area
+    public void PerformUpgrade()
+    {
+        if (isUpgraded) return;
+
+        bossNpcHealth = 100f; // Refill
+        closeRangeDamage *= 1.5f; // Buff damage
+        longRangeDamage *= 1.5f;
+        isUpgraded = true;
+        beenToSafeArea = true;
+
+        if (meleeWeapon != null) meleeWeapon.SetActive(false);
+        if (longRangeWeapon != null) longRangeWeapon.SetActive(true);
+
+        Debug.Log("<color=cyan>BOSS: Health Refilled & Upgraded to Hybrid Mode!</color>");
+    }
+
+    private void Start()
+    {
+        steering = GetComponent<SteeringAgent>();
+        anim = GetComponent<Animator>();
+
+        if (meleeWeapon != null) meleeWeapon.SetActive(true);
+        if (longRangeWeapon != null) longRangeWeapon.SetActive(false);
+    }
 
     public void UpdateMoneySensing()
     {
@@ -125,26 +174,52 @@ public class NPCController : MonoBehaviour
         if (player != null)
         {
             playerDistance = Vector3.Distance(transform.position, player.transform.position);
-
-            // CRITICAL: Call this so the Boss "sees" the player
             UpdateLineOfSight();
+
+            //// Phase 2 Movement Logic (Kiting)
+            //if (isUpgraded && playerVisible)
+            //{
+            //    ManageRangerDistance(player.transform.position);
+            //}
+        }
+
+        if (anim != null && steering != null)
+        {
+            float currentMovementSpeed = steering.GetVelocity().magnitude;
+            anim.SetFloat("Speed", currentMovementSpeed);
         }
     }
 
+    private void ManageRangerDistance(Vector3 playerPos)
+    {
+        float keepAwayDistance = 6f; // If player is closer than 6m, back up
+
+        if (playerDistance < keepAwayDistance)
+        {
+            currentAction = "Kiting Player";
+            steering.Leave(playerPos); // Move away
+        }
+    }
 
     public void DealDamageToPlayer()
     {
-        // Subtract from the variable that lives ON THIS SCRIPT
-        playerHealth -= currentDamage;
-        Debug.Log($"Boss dealt {currentDamage} damage!");
-
-        // Check for Game Over
-        if (playerHealth <= 0)
+        if (!isUpgraded)
         {
-            Debug.Log("<color=black><b>GAME OVER: The Boss has defeated you!</b></color>");
-            // Optional: Time.timeScale = 0; // Freeze the game
+            // Phase 1: Melee
+            playerHealth -= closeRangeDamage;
+            if (anim != null) anim.SetTrigger("SwordTrigger");
+            Debug.Log("Sword Hit!");
+        }
+        else
+        {
+            // Phase 2: Shoot
+            ShootProjectile(longRangeDamage);
+            if (anim != null) anim.SetTrigger("ShootTrigger");
+            Debug.Log("Gun Shot!");
         }
     }
+
+
 
     public bool IsPlayerDead()
     {
@@ -153,14 +228,15 @@ public class NPCController : MonoBehaviour
 
     public void SwitchToLongRange()
     {
-        // Short range was ~2m, Long range is now ~8m
-        attackRange = 8f;
+        // This triggers the health refill and the model swap
+        PerformUpgrade();
 
-        // We also need to tell the Steering to stop further away
-        GetComponent<SteeringAgent>().arrivalDistance = 7f;
-        GetComponent<SteeringAgent>().slowingDistance = 10f;
+        // Update the steering to keep distance as a ranger
+        if (steering == null) steering = GetComponent<SteeringAgent>();
+        steering.arrivalDistance = 8f;
+        steering.slowingDistance = 10f;
 
-        Debug.Log("<color=red>PHASE 2: Boss is using Long Range Weapon!</color>");
+        Debug.Log("<color=red>PHASE 2: Hybrid Combat Initialized!</color>");
     }
 
     public void CollectMoney()
@@ -217,4 +293,24 @@ public class NPCController : MonoBehaviour
         Debug.Log("Boss gave up searching.");
     }
 
+    public void ShootProjectile(float dmg)
+    {
+        if (projectilePrefab != null && firePoint != null)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                Vector3 targetPos = player.transform.position + Vector3.up * 1.2f;
+                firePoint.LookAt(targetPos);
+            }
+
+            GameObject bullet = Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
+            BossProjectile projScript = bullet.GetComponent<BossProjectile>();
+            if (projScript != null)
+            {
+                projScript.damage = dmg;
+                projScript.speed = projectileSpeed;
+            }
+        }
+    }
 }
