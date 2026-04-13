@@ -10,7 +10,7 @@ public class Projectile : MonoBehaviour
     public float lifetime = 5f;
 
     [Header("Identity")]
-    public ProjectileSource firedBy; // Set this when Instantiating
+    public ProjectileSource firedBy;
 
     void Start()
     {
@@ -19,38 +19,39 @@ public class Projectile : MonoBehaviour
 
     void Update()
     {
-        // Move forward relative to its own rotation
         transform.Translate(Vector3.forward * speed * Time.deltaTime);
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        // 1. IF FIRED BY BOSS -> LOOK FOR PLAYER
+        // 1. IF FIRED BY BOSS -> LOOK FOR PLAYERSTATS
         if (firedBy == ProjectileSource.Boss && other.CompareTag("Player"))
         {
-            NPCController bossScript = FindObjectOfType<NPCController>();
-            if (bossScript != null)
+            // CHANGE: Talk to PlayerStats, not the Boss script
+            PlayerController player = other.GetComponent<PlayerController>();
+            if (player != null)
             {
-                bossScript.playerHealth -= damage;
-                Debug.Log("<color=red>Boss hit Player!</color> New Player HP: " + bossScript.playerHealth);
+                player.TakeDamage(damage);
+                Debug.Log("<color=red>Boss projectile hit Player!</color>");
             }
             Destroy(gameObject);
         }
 
         // 2. IF FIRED BY PLAYER -> LOOK FOR BOSS
-        else if (firedBy == ProjectileSource.Player && (other.CompareTag("NPC")))
+        else if (firedBy == ProjectileSource.Player && other.CompareTag("NPC"))
         {
-            NPCController bossScript = other.GetComponent<NPCController>();
-            if (bossScript != null)
+            // CHANGE: Use NPCController (base class) so it works for all NPCs/Bosses
+            NPCController npc = other.GetComponent<NPCController>();
+            if (npc != null)
             {
-                bossScript.TakeDamage(damage);
-                Debug.Log("<color=cyan>Player hit Boss!</color>");
+                npc.TakeDamage(damage);
+                Debug.Log("<color=cyan>Player projectile hit NPC!</color>");
             }
             Destroy(gameObject);
         }
 
-        // 3. HIT ENVIRONMENT (Walls/Floors)
-        else if (other.gameObject.layer == LayerMask.NameToLayer("Obstruction") || other.gameObject.layer == 0) // 0 is Default
+        // 3. HIT ENVIRONMENT
+        else if (other.gameObject.layer == LayerMask.NameToLayer("Obstruction") || other.gameObject.layer == 0)
         {
             Destroy(gameObject);
         }

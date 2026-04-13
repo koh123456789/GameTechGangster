@@ -8,7 +8,7 @@ public class HealthBarController : MonoBehaviour
     [Header("References")]
     public Slider healthSlider;
     public TextMeshProUGUI hpText;
-    public NPCController bossData; // The script where HP is stored
+    public BossController bossData; // The script where HP is stored
 
     [Header("Status Icons")]
     public GameObject questionMarkIcon; // For "Search"
@@ -56,38 +56,54 @@ public class HealthBarController : MonoBehaviour
 
     void LateUpdate()
     {
+        // 1. If the boss is dead, just hide the whole UI and stop processing
+        if (bossData != null && bossData.isDead)
+        {
+            // This makes the health bar and all child icons vanish
+            gameObject.SetActive(false);
+            return;
+        }
+
         if (cam != null) transform.LookAt(transform.position + cam.forward);
 
         if (bossData != null && healthSlider != null)
+        {
             healthSlider.value = bossData.bossNpcHealth;
+            UpdateHPText(); // Keep text updated until the very last hit
+        }
 
         UpdateStatusIcons();
     }
 
     void UpdateStatusIcons()
     {
-        if (bossData == null) return;
+        if (bossData == null || bossData.isDead) return;
 
-        // 1. Search Icon (Question Mark)
+        // 1. Search Icon
         if (questionMarkIcon != null)
         {
-            bool isSearching = (bossData.currentAction == BossAction.Search);
-            questionMarkIcon.SetActive(isSearching);
+            questionMarkIcon.SetActive(bossData.currentAction == BossAction.Search);
         }
 
-        // 2. Retreat Icon (e.g., a Running Man or Shield)
+        // 2. Retreat Icon
         if (retreatIcon != null)
         {
-            bool isRetreating = (bossData.currentAction == BossAction.Retreat);
-            retreatIcon.SetActive(isRetreating);
+            retreatIcon.SetActive(bossData.currentAction == BossAction.Retreat);
         }
 
-        // 3. Found Icon (e.g., an Exclamation Mark "!")
-        // We use the bool from the NPCController directly for this
+        // 3. Found Icon
         if (foundIcon != null)
         {
-            bool playerFound = bossData.playerVisible;
+            // Add "Upgrade" here too so it doesn't overlap
+            bool isBusy = bossData.currentAction == BossAction.Retreat ||
+                          bossData.currentAction == BossAction.Upgrade;
+
+            bool playerFound = bossData.playerVisible && !isBusy;
             foundIcon.SetActive(playerFound);
         }
+
+        // 4. NEW: Upgrade/Phase 2 Visual (Optional but helpful)
+        // If you have a special icon for Phase 2, you can toggle it here
+        // using bossData.isUpgraded
     }
 }

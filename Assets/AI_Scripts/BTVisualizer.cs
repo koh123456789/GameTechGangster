@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 public class BTVisualizer : MonoBehaviour
 {
-    public NPCController npc;
+    public BossController npc;
 
     [System.Serializable]
     public struct ActionUI
