@@ -13,6 +13,10 @@ public class PlayerAttack : MonoBehaviour
     public float maxRange = 50f;
     public LayerMask hitMask;           // What can the bullet target?
 
+    [Header("Audio Settings")]
+    public AudioSource audioSource;
+    public AudioClip shootSound;
+
     private float nextFireTime;
 
     void Update()
@@ -29,6 +33,12 @@ public class PlayerAttack : MonoBehaviour
         // 1. Calculate the target point (center of screen)
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 targetPoint;
+
+        if (audioSource != null && shootSound != null)
+        {
+            // PlayOneShot is critical so sounds can overlap!
+            audioSource.PlayOneShot(shootSound);
+        }
 
         if (Physics.Raycast(ray, out RaycastHit hit, maxRange, hitMask))
         {

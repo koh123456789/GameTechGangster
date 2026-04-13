@@ -7,6 +7,7 @@ public class SteeringAgent : MonoBehaviour
     public float maxSpeed = 5f;
     public float maxForce = 10f;
     public float slowingDistance = 2f;
+    public float stoppingDistance = 0f;
 
     [Header("Wander Settings (API)")]
     public float wanderRadius = 8f;
@@ -63,8 +64,6 @@ public class SteeringAgent : MonoBehaviour
             transform.forward = Vector3.Slerp(transform.forward, velocity.normalized, Time.deltaTime * 5f);
 
     }
-
-    // --- API Methods ---
 
     public void Seek(Vector3 target)
     {

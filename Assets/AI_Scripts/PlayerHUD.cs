@@ -4,27 +4,35 @@ using UnityEngine.UI;
 
 public class PlayerHUD : MonoBehaviour
 {
-    public NPCController npc;
+    // CHANGE: Point this to the PlayerStats script on your actual Player object
+    public PlayerController playerStats;
 
     [Header("UI Elements")]
     public Slider healthSlider;
-    public TextMeshProUGUI hpNumberText; // The text to the right of the bar
-    public TextMeshProUGUI statusText;   // Separate text for the Healthy/Warning status
+    public TextMeshProUGUI hpNumberText;
+    public TextMeshProUGUI statusText;
 
     void Start()
     {
-        if (npc != null && healthSlider != null)
+        // If you don't want to drag it in the inspector, find it automatically
+        if (playerStats == null)
         {
-            // Sync slider max value with NPC data
-            healthSlider.maxValue = 100f; // Or npc.maxPlayerHealth if you have it
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null) playerStats = player.GetComponent<PlayerController>();
+        }
+
+        if (playerStats != null && healthSlider != null)
+        {
+            healthSlider.maxValue = playerStats.maxHealth;
+            healthSlider.value = playerStats.currentHealth;
         }
     }
 
     void Update()
     {
-        if (npc == null) return;
+        if (playerStats == null) return;
 
-        float currentHP = npc.playerHealth;
+        float currentHP = playerStats.currentHealth;
 
         // 1. Update Slider
         if (healthSlider != null)
@@ -32,16 +40,18 @@ public class PlayerHUD : MonoBehaviour
             healthSlider.value = currentHP;
         }
 
-        // 2. Update HP Number (Right Side)
+        // 2. Update HP Number
         if (hpNumberText != null)
         {
-            hpNumberText.text = currentHP.ToString("F0"); // Shows as "100" instead of "100.00"
+            hpNumberText.text = currentHP.ToString("F0");
         }
 
         // 3. Update Status Text
         if (statusText != null)
         {
-            statusText.text = currentHP < 30 ? "<color=red>WARNING</color>" : "<color=green>HEALTHY</color>";
+            // Using a threshold of 30% of max health is safer than a hardcoded 30
+            float warningThreshold = playerStats.maxHealth * 0.3f;
+            statusText.text = currentHP < warningThreshold ? "<color=red>WARNING</color>" : "<color=green>HEALTHY</color>";
         }
     }
 }
