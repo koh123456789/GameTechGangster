@@ -59,6 +59,15 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f450db30cd56b7a4ba0bb3c5d2f87ba1, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6948708258858243240}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f450db30cd56b7a4ba0bb3c5d2f87ba1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -8240832836267202940}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f450db30cd56b7a4ba0bb3c5d2f87ba1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 589680541385608615}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: f450db30cd56b7a4ba0bb3c5d2f87ba1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -7547931995732922837}
   m_SourcePrefab: {fileID: 100100000, guid: f450db30cd56b7a4ba0bb3c5d2f87ba1, type: 3}
 --- !u!1 &1191214064150676347 stripped
 GameObject:
@@ -87,3 +96,86 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &-8240832836267202940
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1191214064150676347}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 343d9f53392c50441b21be36af42a6b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BossController
+  maxHealth: 100
+  bossNpcHealth: 100
+  attackRange: 2.5
+  isDead: 0
+  damageReceived: 0
+  playerDistance: 0
+  playerVisible: 0
+  viewDistance: 15
+  viewAngle: 120
+  obstructionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  losePlayerDelay: 1
+  currentState: 
+  currentAction: 0
+  safeArea: {fileID: 0}
+  lastKnownPlayerPos: {x: 0, y: 0, z: 0}
+  isUpgraded: 0
+  beenToSafeArea: 0
+  lowHealthThreshold: 30
+  moneyDetectionRadius: 10
+  moneyLayer:
+    serializedVersion: 2
+    m_Bits: 512
+  moneyVisible: 0
+  currentMoneyPos: {x: 0, y: 0, z: 0}
+  meleeWeapon: {fileID: 0}
+  longRangeWeapon: {fileID: 0}
+  closeRangeDamage: 5
+  longRangeDamage: 10
+  phase2AttackRange: 15
+  projectilePrefab: {fileID: 0}
+  firePoint: {fileID: 0}
+  attackRangeBuffer: 2
+  minionPrefab: {fileID: 0}
+  spawnPoints: []
+  hasCalledBackup: 0
+  isBoss: 1
+--- !u!114 &589680541385608615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1191214064150676347}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59331caae0573a542b98c49bad186562, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SteeringAgent
+  maxSpeed: 5
+  maxForce: 10
+  slowingDistance: 2
+  stoppingDistance: 0
+  wanderRadius: 8
+  wanderInterval: 5
+  arrivalDistance: 1.5
+  minWaitTime: 2
+  maxWaitTime: 5
+--- !u!114 &-7547931995732922837
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1191214064150676347}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ef84c8e34b0b2344bae2f618ccac96d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BossBehavior
