@@ -30,7 +30,6 @@ public class SteeringAgent : MonoBehaviour
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-
         NavMeshHit hit;
         if (NavMesh.SamplePosition(transform.position, out hit, 2.0f, NavMesh.AllAreas))
         {
@@ -62,6 +61,7 @@ public class SteeringAgent : MonoBehaviour
 
         if (velocity.magnitude > 0.1f)
             transform.forward = Vector3.Slerp(transform.forward, velocity.normalized, Time.deltaTime * 5f);
+
     }
 
     // --- API Methods ---
@@ -155,12 +155,17 @@ public class SteeringAgent : MonoBehaviour
         velocity = Vector3.zero;
         if (agent != null && agent.isOnNavMesh)
         {
-            agent.isStopped = true;
             agent.velocity = Vector3.zero;
-            // Reset these so NavMeshAgent can drive itself again
-            agent.updatePosition = true;
-            agent.updateRotation = true;
+            // Keep updatePosition false so our steering stays in control
+            agent.updatePosition = false;
+            agent.updateRotation = false;
         }
+    }
+
+    // Add this so other scripts can check how fast the agent is moving
+    public Vector3 GetVelocity()
+    {
+        return velocity;
     }
 
     // Visual Aid: Shows the wander target as a blue sphere in Scene View

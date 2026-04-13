@@ -1,17 +1,36 @@
 using UnityEngine;
 
+public enum BossAction
+{
+    Idle,
+    Wandering,
+    Chase,
+    EnterAttackRange,
+    Attack,
+    Search,
+    Retreat,
+    CallBackup,
+    Upgrade,
+    TrackMoney,
+    CollectMoney
+}
+
 public class NPCController : MonoBehaviour
 {
     [Header("Boss Stats")]
+    public float maxHealth = 100f; // Set default to 100
     public float bossNpcHealth = 100f;
     public float lowHealthThreshold = 30f;
-    public float attackRange = 5f;
+    public float attackRange = 2.5f;
+    public float phaseTwoAttackRange = 12f;
+    public bool isDead = false;
 
     [Header("Player Status")]
     public float playerHealth = 100f;
     public float playerDistance;
     public bool playerVisible;
     public bool damageReceived;
+    public float memoryTime = 5f;
 
     [Header("Environmental Status")]
     public Transform safeAreaTransform;
@@ -19,12 +38,15 @@ public class NPCController : MonoBehaviour
 
     [Header("Debug Info")]
     public string currentState;
-    public string currentAction;
+    public BossAction currentAction;
 
     [Header("Line of Sight Settings")]
     public float viewDistance = 15f;
     public float viewAngle = 90f;
     public LayerMask obstructionMask; // Make sure your walls are on this layer
+    public float combatProximityBuffer = 4.0f; // NEW: Stay in combat if this close
+    private float losePlayerTimer;
+    public float losePlayerDelay = 1.0f;
 
     [Header("Sensing Settings")]
     public float moneyDetectionRadius = 10f;
@@ -40,6 +62,57 @@ public class NPCController : MonoBehaviour
     public float closeRangeDamage = 10f;
     public float longRangeDamage = 20f;
     public float currentDamage = 10f; // This is what DealDamageToPlayer will use
+
+    [Header("Projectile Settings (Phase 2)")]
+    public GameObject projectilePrefab;
+    public Transform firePoint;
+    public float projectileSpeed = 20f;
+
+    [Header("Weapon Visuals")]
+    public GameObject meleeWeapon;      // Drag your Sword here
+    public GameObject longRangeWeapon;  // Drag your Gun/Bow here
+
+    private GameObject playerRef;
+    private SteeringAgent steering;
+    private Animator anim;
+
+    [Header("Phase 2 Settings")]
+    public bool isUpgraded = false;
+
+    void Awake()
+    {
+        // Initialize current health to max at the very start
+        bossNpcHealth = maxHealth;
+    }
+
+    // Call this ONCE when arriving at the safe area
+    public void PerformUpgrade()
+    {
+        if (isUpgraded) return;
+
+        bossNpcHealth = maxHealth; // Refill
+        closeRangeDamage *= 1.5f; // Buff damage
+        longRangeDamage *= 1.5f;
+        isUpgraded = true;
+        beenToSafeArea = true;
+
+        if (meleeWeapon != null) meleeWeapon.SetActive(false);
+        if (longRangeWeapon != null) longRangeWeapon.SetActive(true);
+
+        Debug.Log("<color=cyan>BOSS: Health Refilled & Upgraded to Hybrid Mode!</color>");
+    }
+
+    private void Start()
+    {
+        steering = GetComponent<SteeringAgent>();
+        anim = GetComponent<Animator>();
+
+        // PERFORMANCE FIX: Find player once at start, not every frame
+        playerRef = GameObject.FindGameObjectWithTag("Player");
+
+        if (meleeWeapon != null) meleeWeapon.SetActive(true);
+        if (longRangeWeapon != null) longRangeWeapon.SetActive(false);
+    }
 
     public void UpdateMoneySensing()
     {
@@ -71,31 +144,35 @@ public class NPCController : MonoBehaviour
 
     public void UpdateLineOfSight()
     {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) return;
+        if (playerRef == null) return;
 
-        Vector3 dirToPlayer = (player.transform.position - transform.position).normalized;
-        float distToPlayer = Vector3.Distance(transform.position, player.transform.position);
-
-        if (distToPlayer <= viewDistance)
+        // 1. PROXIMITY CHECK (The "Melee Fix")
+        // If the player is right in his face, he "sees" them regardless of angles
+        if (playerDistance <= combatProximityBuffer)
         {
-            // 1. Check Field of View
+            playerVisible = true;
+            losePlayerTimer = losePlayerDelay;
+            return;
+        }
+
+        Vector3 dirToPlayer = (playerRef.transform.position - transform.position).normalized;
+
+        if (playerDistance <= viewDistance)
+        {
+            // 2. FIELD OF VIEW CHECK
             if (Vector3.Angle(transform.forward, dirToPlayer) < viewAngle / 2)
             {
                 Vector3 eyePos = transform.position + Vector3.up * 1.6f;
-                Vector3 targetPos = player.transform.position + Vector3.up * 1.0f;
+                Vector3 targetPos = playerRef.transform.position + Vector3.up * 1.0f;
                 Vector3 direction = (targetPos - eyePos).normalized;
 
-                // 2. Raycast check
-                if (Physics.Raycast(eyePos, direction, out RaycastHit hit, viewDistance))
+                // 3. RAYCAST WITH MASK
+                if (Physics.Raycast(eyePos, direction, out RaycastHit hit, viewDistance, obstructionMask))
                 {
-                    //Debug.Log("Ray hit: " + hit.collider.gameObject.name);
-
                     if (hit.collider.CompareTag("Player"))
                     {
                         playerVisible = true;
-
-                        // Draw Green line and EXIT the function early
+                        losePlayerTimer = losePlayerDelay; // Keep timer full
                         Debug.DrawLine(eyePos, targetPos, Color.green);
                         return;
                     }
@@ -103,9 +180,14 @@ public class NPCController : MonoBehaviour
             }
         }
 
-        // 3. If we reach here, it means the player was NOT seen
-        playerVisible = false;
-        Debug.DrawLine(transform.position + Vector3.up * 1.6f, player.transform.position + Vector3.up, Color.red);
+        // 4. COMBAT MEMORY (The "Wandering Fix")
+        // Don't turn playerVisible to false immediately. Count down first.
+        losePlayerTimer -= Time.deltaTime;
+        if (losePlayerTimer <= 0)
+        {
+            playerVisible = false;
+            Debug.DrawLine(transform.position + Vector3.up * 1.6f, playerRef.transform.position + Vector3.up, Color.red);
+        }
     }
 
     public Vector3 safeAreaPosition
@@ -119,32 +201,52 @@ public class NPCController : MonoBehaviour
 
     private void Update()
     {
+        // PERFORMANCE FIX: Only run sensing if money exists (or use a timer)
         UpdateMoneySensing();
 
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        if (playerRef != null)
         {
-            playerDistance = Vector3.Distance(transform.position, player.transform.position);
-
-            // CRITICAL: Call this so the Boss "sees" the player
+            playerDistance = Vector3.Distance(transform.position, playerRef.transform.position);
             UpdateLineOfSight();
+        }
+
+        if (anim != null && steering != null)
+        {
+            float currentMovementSpeed = steering.GetVelocity().magnitude;
+            anim.SetFloat("Speed", currentMovementSpeed);
         }
     }
 
+    private void ManageRangerDistance(Vector3 playerPos)
+    {
+        float keepAwayDistance = 6f; // If player is closer than 6m, back up
+
+        if (playerDistance < keepAwayDistance)
+        {
+            //currentAction = "Kiting Player";
+            steering.Leave(playerPos); // Move away
+        }
+    }
 
     public void DealDamageToPlayer()
     {
-        // Subtract from the variable that lives ON THIS SCRIPT
-        playerHealth -= currentDamage;
-        Debug.Log($"Boss dealt {currentDamage} damage!");
-
-        // Check for Game Over
-        if (playerHealth <= 0)
+        if (!isUpgraded)
         {
-            Debug.Log("<color=black><b>GAME OVER: The Boss has defeated you!</b></color>");
-            // Optional: Time.timeScale = 0; // Freeze the game
+            // Phase 1: Melee
+            playerHealth -= closeRangeDamage;
+            if (anim != null) anim.SetTrigger("SwordTrigger");
+            Debug.Log("Sword Hit!");
+        }
+        else
+        {
+            // Phase 2: Shoot
+            ShootProjectile(longRangeDamage);
+            if (anim != null) anim.SetTrigger("ShootTrigger");
+            Debug.Log("Gun Shot!");
         }
     }
+
+
 
     public bool IsPlayerDead()
     {
@@ -153,14 +255,15 @@ public class NPCController : MonoBehaviour
 
     public void SwitchToLongRange()
     {
-        // Short range was ~2m, Long range is now ~8m
-        attackRange = 8f;
+        // This triggers the health refill and the model swap
+        PerformUpgrade();
 
-        // We also need to tell the Steering to stop further away
-        GetComponent<SteeringAgent>().arrivalDistance = 7f;
-        GetComponent<SteeringAgent>().slowingDistance = 10f;
+        // Update the steering to keep distance as a ranger
+        if (steering == null) steering = GetComponent<SteeringAgent>();
+        steering.arrivalDistance = 8f;
+        steering.slowingDistance = 10f;
 
-        Debug.Log("<color=red>PHASE 2: Boss is using Long Range Weapon!</color>");
+        Debug.Log("<color=red>PHASE 2: Hybrid Combat Initialized!</color>");
     }
 
     public void CollectMoney()
@@ -196,6 +299,8 @@ public class NPCController : MonoBehaviour
     {
         bossNpcHealth -= amount;
 
+        if (isDead) return;
+
         if (bossNpcHealth <= lowHealthThreshold)
         {
             // CLEAR EVERYTHING: Stop searching, stop visible player tracking
@@ -209,6 +314,11 @@ public class NPCController : MonoBehaviour
             CancelInvoke("ResetDamageFlag");
             Invoke("ResetDamageFlag", 5f);
         }
+
+        if (bossNpcHealth <= 0)
+        {
+            Die();
+        }
     }
 
     private void ResetDamageFlag()
@@ -217,4 +327,48 @@ public class NPCController : MonoBehaviour
         Debug.Log("Boss gave up searching.");
     }
 
+    public void ShootProjectile(float dmg)
+    {
+        if (projectilePrefab != null && firePoint != null)
+        {
+            // Aim logic
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                Vector3 targetPos = player.transform.position + Vector3.up * 1.2f;
+                firePoint.LookAt(targetPos);
+            }
+
+            // Spawn
+            GameObject bullet = Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
+
+            // Get Script
+            Projectile projScript = bullet.GetComponent<Projectile>();
+            if (projScript != null)
+            {
+                projScript.damage = dmg;
+                projScript.speed = projectileSpeed;
+
+                // ADD THIS LINE:
+                projScript.firedBy = ProjectileSource.Boss;
+            }
+        }
+    }
+
+    void Die()
+    {
+        isDead = true;
+        anim.SetTrigger("isDead"); // Make sure your Animator has a "Die" trigger
+
+        // Stop the boss from moving
+        GetComponent<SteeringAgent>().Stop();
+
+        // Disable the collider so the player can walk through the body
+        GetComponent<Collider>().enabled = false;
+
+        Debug.Log("Boss has been defeated!");
+
+        // Optional: Destroy the object after a few seconds
+        // Destroy(gameObject, 5f); 
+    }
 }
