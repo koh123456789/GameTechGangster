@@ -16,115 +16,116 @@ public class BossBehavior : MonoBehaviour
         GameObject playerObj = GameObject.FindWithTag("Player");
         if (playerObj != null) playerTransform = playerObj.transform;
 
-        // --- BUILDING THE TREE ACCORDING TO YOUR GRAPH ---
         rootNode = new Selector(new List<Node>
         {
-        // 1. SURVIVAL BRANCH (Priority 1)
+        // 1. SURVIVAL BRANCH
         new Sequence(new List<Node> {
             new ConditionNode(() => npc.bossNpcHealth <= npc.lowHealthThreshold && !npc.beenToSafeArea),
-            new ActionNode(() => {
-                npc.currentState = "Survival";
-                float distToSafe = Vector3.Distance(transform.position, npc.safeAreaPosition);
-                if (distToSafe > 2.5f) {
-                    npc.currentAction = "Retreat";
-                    steering.Seek(npc.safeAreaPosition);
-                    return NodeStatus.RUNNING;
-                }
-                npc.currentAction = "Upgrade & Buff";
-                npc.PerformUpgrade();
-                return NodeStatus.SUCCESS;
+            new Selector(new List<Node> {
+                // RETREAT
+                new Sequence(new List<Node> {
+                    new ConditionNode(() => Vector3.Distance(transform.position, npc.safeAreaPosition) > 2.5f),
+                    new ActionNode(() => {
+                        npc.currentState = "Survival";
+                        npc.currentAction = BossAction.Retreat; // SET ACTION
+                        steering.Seek(npc.safeAreaPosition);
+                        return NodeStatus.RUNNING;
+                    })
+                }),
+                // UPGRADE & BUFF
+                new ActionNode(() => {
+                    npc.currentState = "Survival";
+                    npc.currentAction = BossAction.Upgrade; // SET ACTION
+                    npc.PerformUpgrade();
+                    return NodeStatus.SUCCESS;
+                })
             })
         }),
 
-        // 2. MONEY BRANCH (Priority 2)
+        // 2. MONEY BRANCH
         new Sequence(new List<Node> {
             new ConditionNode(() => npc.moneyVisible),
             new ActionNode(() => {
-                npc.currentState = "Interact";
+                npc.currentState = "Money";
                 float dist = Vector3.Distance(transform.position, npc.currentMoneyPos);
                 if (dist < 1.2f) {
-                    npc.currentAction = "Collect Cash";
+                    npc.currentAction = BossAction.CollectMoney; // SET ACTION
                     npc.CollectMoney();
                     return NodeStatus.SUCCESS;
                 } else {
-                    npc.currentAction = "Track Cash";
+                    npc.currentAction = BossAction.TrackMoney; // SET ACTION
                     steering.Seek(npc.currentMoneyPos);
                     return NodeStatus.RUNNING;
                 }
             })
         }),
 
-        // 3. COMBAT BRANCH (Priority 3)
+        // 3. COMBAT BRANCH
         new Selector(new List<Node> {
-            // --- SUB-BRANCH A: PLAYER VISIBLE ---
             new Sequence(new List<Node> {
                 new ConditionNode(() => npc.playerVisible),
-
-                new ActionNode(() => {
-                    npc.currentState = "Combat";
-                    return NodeStatus.SUCCESS; // Success lets the Sequence move to the next child
-                }),
+                new ActionNode(() => { npc.currentState = "Combat"; return NodeStatus.SUCCESS; }),
                 new Selector(new List<Node> {
-                    
-                    // PRIORITY 1: ATTACK (The "Close" Zone)
+                    // ATTACK
                     new Sequence(new List<Node> {
                         new ConditionNode(() => npc.playerDistance <= npc.attackRange),
                         new Selector(new List<Node>{
-                            // Action A: Do damage if cooldown is ready
                             new Cooldown(new ActionNode(() => {
-                                npc.currentAction = "Attack";
+                                npc.currentAction = BossAction.Attack; // SET ACTION
                                 npc.DealDamageToPlayer();
                                 return NodeStatus.SUCCESS;
                             }), 2.0f),
-                            // Action B: If cooldown is NOT ready, stay in Attack state
                             new ActionNode(() => {
-                                npc.currentAction = "Attack";
+                                npc.currentAction = BossAction.Attack;
                                 steering.Stop();
                                 return NodeStatus.RUNNING;
                             })
                         })
                     }),
-                
-                    // PRIORITY 2: ENTER RANGE (The "Middle" Zone)
-                    new Sequence(new List<Node> {
-                        // Only run this if we are within a reasonable 'approach' distance
-                        new ConditionNode(() => npc.playerDistance <= (npc.attackRange + 4f)),
-                        new ActionNode(() => {
-                            npc.currentAction = "Enter Attack Range";
-                            steering.Arrive(playerTransform.position);
-                            return NodeStatus.RUNNING;
-                        })
-                    }),
-                
-                    // PRIORITY 3: CHASE (The "Far" Zone)
+                    // CHASE
                     new ActionNode(() => {
-                        npc.currentAction = "Chase";
+                        npc.currentAction = BossAction.Chase; // SET ACTION
                         steering.Seek(playerTransform.position);
                         return NodeStatus.RUNNING;
                     })
                 })
             }),
-            // --- SUB-BRANCH B: SEARCH IF DAMAGED ---
+
+            // 2. SEARCH logic (The logic fix)
             new Sequence(new List<Node> {
                 new ConditionNode(() => npc.damageReceived),
-                new ActionNode(() => {
-                    npc.currentState = "Combat";
-                    npc.currentAction = "Search";
-                    // steering.Seek(lastKnownPos);
-                    return NodeStatus.SUCCESS;
+                // Wrap the Timeout in an Inverter or use a Selector to ensure we reset the flag
+                new Selector(new List<Node> {
+                    new Timeout(new ActionNode(() => {
+                        npc.currentAction = BossAction.Search;
+                        npc.currentState = "Combat"; // Added this for the UI
+                        steering.Wander();
+                        return NodeStatus.RUNNING;
+                    }), 7.0f), 
+                    
+                    // This ActionNode runs ONLY when the Timeout returns FAILURE (after 7s)
+                    new ActionNode(() => {
+                        npc.damageReceived = false;
+                        Debug.Log("Search timed out. Resetting flag.");
+                        return NodeStatus.SUCCESS;
+                    })
                 })
             })
+
+
         }),
 
-        // 4. PATROL BRANCH (Priority 4 - Default)
-        // No conditions needed here because the Selector only gets here 
-        // if Survival, Money, and Combat ALL failed.
-        new ActionNode(() => {
-            npc.currentState = "Idle/Patrol";
-            npc.currentAction = "Wandering";
-            steering.Wander();
-            return NodeStatus.SUCCESS;
-        })
+        
+            // 4. PATROL BRANCH (Lowest Priority)
+            new Sequence(new List<Node> {
+                new Repeater(new ActionNode(() => {
+                    npc.currentState = "Patrol";
+                    npc.currentAction = BossAction.Wandering;
+                    steering.Wander();
+                    return NodeStatus.RUNNING;
+                }), -1) // -1 makes the Boss wander forever until interrupted by Combat/Survival
+            })
+
         });
     }
 

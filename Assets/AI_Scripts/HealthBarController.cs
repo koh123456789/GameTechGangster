@@ -7,6 +7,11 @@ public class HealthBarController : MonoBehaviour
     public Slider healthSlider;
     public NPCController bossData; // The script where HP is stored
 
+    [Header("Status Icons")]
+    public GameObject questionMarkIcon; // For "Search"
+    public GameObject retreatIcon;      // For "Retreat"
+    public GameObject foundIcon;        // For "Player Visible"
+
     private Transform cam;
 
     void Start()
@@ -28,22 +33,46 @@ public class HealthBarController : MonoBehaviour
         {
             canvas.worldCamera = Camera.main;
         }
+
+        if (questionMarkIcon != null) questionMarkIcon.SetActive(false);
+        if (retreatIcon != null) retreatIcon.SetActive(false);
+        if (foundIcon != null) foundIcon.SetActive(false);
     }
 
-    // LateUpdate is best for UI and Cameras to prevent "jittery" movement
     void LateUpdate()
     {
-        // 1. FACE THE CAMERA (Billboard Logic)
-        if (cam != null)
+        if (cam != null) transform.LookAt(transform.position + cam.forward);
+
+        if (bossData != null && healthSlider != null)
+            healthSlider.value = bossData.bossNpcHealth;
+
+        UpdateStatusIcons();
+    }
+
+    void UpdateStatusIcons()
+    {
+        if (bossData == null) return;
+
+        // 1. Search Icon (Question Mark)
+        if (questionMarkIcon != null)
         {
-            // This makes the bar face the camera perfectly
-            transform.LookAt(transform.position + cam.forward);
+            bool isSearching = (bossData.currentAction == BossAction.Search);
+            questionMarkIcon.SetActive(isSearching);
         }
 
-        // 2. UPDATE THE VALUE
-        if (bossData != null && healthSlider != null)
+        // 2. Retreat Icon (e.g., a Running Man or Shield)
+        if (retreatIcon != null)
         {
-            healthSlider.value = bossData.bossNpcHealth;
+            bool isRetreating = (bossData.currentAction == BossAction.Retreat);
+            retreatIcon.SetActive(isRetreating);
+        }
+
+        // 3. Found Icon (e.g., an Exclamation Mark "!")
+        // We use the bool from the NPCController directly for this
+        if (foundIcon != null)
+        {
+            bool playerFound = bossData.playerVisible;
+            foundIcon.SetActive(playerFound);
         }
     }
 }
