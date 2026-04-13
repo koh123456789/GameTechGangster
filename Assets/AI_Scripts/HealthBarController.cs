@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+
 
 public class HealthBarController : MonoBehaviour
 {
     [Header("References")]
     public Slider healthSlider;
+    public TextMeshProUGUI hpText;
     public NPCController bossData; // The script where HP is stored
 
     [Header("Status Icons")]
@@ -20,11 +23,14 @@ public class HealthBarController : MonoBehaviour
         if (Camera.main != null)
             cam = Camera.main.transform;
 
-        // Initialize Slider
-        if (bossData != null && healthSlider != null)
+        if (bossData != null)
         {
-            healthSlider.maxValue = bossData.maxHealth;
-            healthSlider.value = bossData.bossNpcHealth;
+            if (healthSlider != null)
+            {
+                healthSlider.maxValue = bossData.maxHealth;
+                healthSlider.value = bossData.bossNpcHealth;
+            }
+            UpdateHPText();
         }
 
         // Assign the Event Camera automatically for World Space
@@ -37,6 +43,15 @@ public class HealthBarController : MonoBehaviour
         if (questionMarkIcon != null) questionMarkIcon.SetActive(false);
         if (retreatIcon != null) retreatIcon.SetActive(false);
         if (foundIcon != null) foundIcon.SetActive(false);
+    }
+
+    void UpdateHPText()
+    {
+        if (hpText != null && bossData != null)
+        {
+            // Format: "85 / 100"
+            hpText.text = $"{bossData.bossNpcHealth:F0} / {bossData.maxHealth:F0}";
+        }
     }
 
     void LateUpdate()

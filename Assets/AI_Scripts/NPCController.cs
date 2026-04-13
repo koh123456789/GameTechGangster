@@ -18,11 +18,12 @@ public enum BossAction
 public class NPCController : MonoBehaviour
 {
     [Header("Boss Stats")]
-    public float maxHealth = 1000f; // Set default to 100
+    public float maxHealth = 100f; // Set default to 100
     public float bossNpcHealth = 100f;
     public float lowHealthThreshold = 30f;
     public float attackRange = 2.5f;
     public float phaseTwoAttackRange = 12f;
+    public bool isDead = false;
 
     [Header("Player Status")]
     public float playerHealth = 100f;
@@ -298,6 +299,8 @@ public class NPCController : MonoBehaviour
     {
         bossNpcHealth -= amount;
 
+        if (isDead) return;
+
         if (bossNpcHealth <= lowHealthThreshold)
         {
             // CLEAR EVERYTHING: Stop searching, stop visible player tracking
@@ -310,6 +313,11 @@ public class NPCController : MonoBehaviour
             damageReceived = true;
             CancelInvoke("ResetDamageFlag");
             Invoke("ResetDamageFlag", 5f);
+        }
+
+        if (bossNpcHealth <= 0)
+        {
+            Die();
         }
     }
 
@@ -345,5 +353,22 @@ public class NPCController : MonoBehaviour
                 projScript.firedBy = ProjectileSource.Boss;
             }
         }
+    }
+
+    void Die()
+    {
+        isDead = true;
+        anim.SetTrigger("isDead"); // Make sure your Animator has a "Die" trigger
+
+        // Stop the boss from moving
+        GetComponent<SteeringAgent>().Stop();
+
+        // Disable the collider so the player can walk through the body
+        GetComponent<Collider>().enabled = false;
+
+        Debug.Log("Boss has been defeated!");
+
+        // Optional: Destroy the object after a few seconds
+        // Destroy(gameObject, 5f); 
     }
 }
