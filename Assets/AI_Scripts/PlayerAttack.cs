@@ -21,6 +21,7 @@ public class PlayerAttack : MonoBehaviour
 
     void Update()
     {
+        if (PauseManager.isPaused) return;
         if (Input.GetMouseButtonDown(0) && Time.time >= nextFireTime)
         {
             Shoot();
