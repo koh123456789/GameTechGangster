@@ -6,6 +6,7 @@ public enum BossAction { Wandering, Chase, EnterAttackRange, Attack, Search, Ret
 public class NPCController : MonoBehaviour
 {
     [Header("Core Stats")]
+    public bool isBoss; // Boss = true, Minion Prefab = false
     public float maxHealth = 100f;
     public float bossNpcHealth = 100f;
     public float attackRange = 2.5f;
@@ -52,7 +53,11 @@ public class NPCController : MonoBehaviour
         CancelInvoke("ResetDamageFlag");
         Invoke("ResetDamageFlag", 5f); // Boss searches for 5 seconds after being hit
 
-        if (bossNpcHealth <= 0) Die();
+        if (bossNpcHealth <= 0)
+        {
+            bossNpcHealth = 0; // Clamp health
+            Die();
+        }
     }
 
     private void ResetDamageFlag()
@@ -62,11 +67,41 @@ public class NPCController : MonoBehaviour
 
     protected virtual void Die()
     {
+        if (isDead) return; // Guard against multiple calls
         isDead = true;
+
+        // 1. Play visuals and audio
         if (bossAudio != null) bossAudio.PlayOneShot(bossAudio.deathScream);
         if (anim != null) anim.SetTrigger("isDead");
+
+        // 2. Stop movement and physics
         if (steering != null) { steering.Stop(); steering.enabled = false; }
-        GetComponent<Collider>().enabled = false;
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
+        // 3. Handle Scene Transition with a delay
+        if (isBoss)
+        {
+            // Start a Coroutine to wait for the animation
+            StartCoroutine(WaitAndWin(3.0f)); // Wait 3 seconds
+        }
+        else
+        {
+            Debug.Log("Minion defeated.");
+            Destroy(gameObject, 3f);
+        }
+    }
+
+    // New helper function to handle the wait
+    private System.Collections.IEnumerator WaitAndWin(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        UIMenuController manager = FindObjectOfType<UIMenuController>();
+        if (manager != null)
+        {
+            manager.GoToWinScene();
+        }
     }
 
     public void UpdateLineOfSight()

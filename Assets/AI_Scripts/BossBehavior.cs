@@ -119,7 +119,7 @@ public class BossBehavior : MonoBehaviour
                                 npc.currentAction = BossAction.Attack;
                                 npc.DealDamageToPlayer();
                                 return NodeStatus.SUCCESS;
-                            }), 2.0f),
+                            }), npc.attackCooldown),
                             new ActionNode(() => NodeStatus.SUCCESS)
                         })
                     }),
@@ -142,7 +142,7 @@ public class BossBehavior : MonoBehaviour
                         npc.currentState = "Combat";
                         steering.Wander();
                         return NodeStatus.RUNNING;
-                    }), 7.0f),
+                    }), npc.searchDuration),
 
                     new ActionNode(() => {
                         npc.damageReceived = false;
@@ -155,26 +155,26 @@ public class BossBehavior : MonoBehaviour
         // 4. PATROL / FOLLOW BRANCH (Lowest Priority)
         new Sequence(new List<Node> {
             new Repeater(new ActionNode(() => {
-                // --- MINION LOGIC ---
-                if (!npc.isBoss && npc.bossTransform != null)
+            // --- MINION LOGIC ---
+            if (!npc.isBoss && npc.bossTransform != null)
+            {
+                npc.currentState = "Following Boss";
+                npc.currentAction = BossAction.Wandering;
+            
+                float distToBoss = Vector3.Distance(transform.position, npc.bossTransform.position);
+            
+                // CHANGE THIS LINE: Use the API variable instead of 4f
+                if (distToBoss > npc.followDistance)
                 {
-                    npc.currentState = "Following Boss";
-                    npc.currentAction = BossAction.Wandering;
-        
-                    float distToBoss = Vector3.Distance(transform.position, npc.bossTransform.position);
-        
-                    if (distToBoss > 4f)
-                    {
-                        steering.maxSpeed = 4f;
-                        steering.Seek(npc.bossTransform.position);
-                    }
-                    else
-                    {
-                        // Close enough to boss, stay put
-                        steering.Stop();
-                    }
-                    return NodeStatus.RUNNING; // Keep repeating the follow logic
+                    // Use the minion's individual maxSpeed (which the API also controls)
+                    steering.Seek(npc.bossTransform.position);
                 }
+                else
+                {
+                    steering.Stop();
+                }
+                return NodeStatus.RUNNING;
+            }
                 
                 // --- BOSS LOGIC (OR if boss is dead) ---
                 else
