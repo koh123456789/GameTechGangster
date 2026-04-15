@@ -33,9 +33,13 @@ public class BossController : NPCController
     [Header("Minion Settings")]
     public GameObject minionPrefab;
     public Transform[] spawnPoints;
+    public float followDistance;
     public bool hasCalledBackup = false;
     public Transform bossTransform;
-    public bool isBoss = true; // Boss = true, Minion Prefab = false
+
+    [Header("API Variables")]
+    public float searchDuration = 7.0f; // This was missing!
+    public float attackCooldown = 2.0f; // Ensure this is here too
 
     public void CallBackup()
     {

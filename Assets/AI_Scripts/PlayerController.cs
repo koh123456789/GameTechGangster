@@ -22,14 +22,28 @@ public class PlayerController : MonoBehaviour
 
         if (currentHealth <= 0)
         {
+            currentHealth = 0;
             Die();
         }
     }
-
     private void Die()
     {
+        if (isDead) return; // Prevent multiple calls
         isDead = true;
+
         Debug.Log("<color=red>PLAYER DIED</color>");
-        // Trigger player death animation or reload scene here
+
+        StartCoroutine(WaitAndLose(2.0f));
+    }
+
+    private System.Collections.IEnumerator WaitAndLose(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // Unlock cursor right before switching
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        FindObjectOfType<UIMenuController>().GoToLoseScene();
     }
 }
