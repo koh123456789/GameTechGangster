@@ -3,14 +3,14 @@ using System.Collections.Generic;
 
 public class BossBehavior : MonoBehaviour
 {
-    private BossController npc;
+    private NPCController npc;
     private SteeringAgent steering;
     private Node rootNode;
     private Transform playerTransform;
 
     void Start()
     {
-        npc = GetComponent<BossController>();
+        npc = GetComponent<NPCController>();
         steering = GetComponent<SteeringAgent>();
 
         GameObject playerObj = GameObject.FindWithTag("Player");
@@ -21,7 +21,7 @@ public class BossBehavior : MonoBehaviour
        // 1. SURVIVAL BRANCH
         new Sequence(new List<Node> {
             // This condition keeps the branch ALIVE
-            new ConditionNode(() => npc.isBoss && npc.bossNpcHealth <= npc.lowHealthThreshold && !npc.beenToSafeArea),
+            new ConditionNode(() => npc.isBoss && npc.NpcHealth <= npc.lowHealthThreshold && !npc.beenToSafeArea),
             new Selector(new List<Node> {
                 // RETREAT
                 new Sequence(new List<Node> {
@@ -40,64 +40,51 @@ public class BossBehavior : MonoBehaviour
                         npc.CallBackup();
                         return NodeStatus.SUCCESS;
                     }),
-                    new Timeout(new ActionNode(() => {
+                    new ActionNode(() => {
                         npc.currentState = "Survival";
                         npc.currentAction = BossAction.Upgrade;
                         steering.Stop();
                         if (!npc.isUpgraded) npc.PerformUpgrade();
                         return NodeStatus.RUNNING;
-                    }), 10.0f)
+                    }), 
                 }),
 
                 // UPGRADE
-                new Timeout(new ActionNode(() => {
+                new ActionNode(() => {
                     // FORCE the text to stay visible during the timeout
                     npc.currentState = "Survival";
                     npc.currentAction = BossAction.Upgrade;
                     steering.Stop();
-        
+
                     if (!npc.isUpgraded) {
                         npc.PerformUpgrade();
                     }
         
                     // Return RUNNING so the Timeout doesn't end early
                     return NodeStatus.RUNNING;
-                }), 10.0f)
+                }),
             })
         }),
 
         // 2. MONEY BRANCH
         new Sequence(new List<Node> {
-        // 1. Check if money is there to start the process
-        new ConditionNode(() => npc.moneyVisible),
-        new Selector(new List<Node> {
-            // 2. If far away, Seek
-            new Sequence(new List<Node> {
-                new ConditionNode(() => Vector3.Distance(transform.position, npc.currentMoneyPos) > 1.2f),
-                new ActionNode(() => {
-                    npc.currentState = "Money";
-                    npc.currentAction = BossAction.TrackMoney;
-                    steering.Seek(npc.currentMoneyPos);
-                    return NodeStatus.RUNNING;
-                })
-            }),
-            // 3. If close, "Snap" the collection and hold for 0.5s
-            new Timeout(new ActionNode(() => {
+            // Check if he sees money AND doesn't have enough yet
+            new ConditionNode(() => npc.moneyVisible && npc.NpcCash < npc.cashTarget),
+        
+            new ActionNode(() => {
+                // Set visual states for the Tally/Graph
                 npc.currentState = "Money";
-                npc.currentAction = BossAction.CollectMoney;
-                steering.Stop();
+                npc.currentAction = BossAction.TrackMoney; 
                 
-                // We collect it immediately on the first frame of the timeout
-                if(npc.moneyVisible) npc.CollectMoney(); 
-    
-                // We return RUNNING so the node STAYS active for 0.5s 
-                // even though moneyVisible is now false!
+                // Tells steering to Seek the currentMoneyPos
+                npc.TrackMoney(); 
+                
+                // IMPORTANT: Return RUNNING so the tree stays on this node 
+                // until the Boss actually touches the coin.
                 return NodeStatus.RUNNING;
-            }), 10.0f)
-        })
-    }),
+            })
+        }),
 
-        // 3. COMBAT BRANCH
        // 3. COMBAT BRANCH
         new Selector(new List<Node> {
             new Sequence(new List<Node> {
@@ -107,7 +94,7 @@ public class BossBehavior : MonoBehaviour
                 new Selector(new List<Node> {
                     // ATTACK & MOVE Sequence
                     new Sequence(new List<Node> {
-                        new ConditionNode(() => npc.playerDistance <= npc.attackRange),
+                        new ConditionNode(() => npc.playerDistance <= npc.meleeWeaponRange),
                         // Movement Logic (Always Move)
                         new ActionNode(() => {
                             npc.HandleMovementLogic();
@@ -135,12 +122,12 @@ public class BossBehavior : MonoBehaviour
 
             // 2. SEARCH logic
             new Sequence(new List<Node> {
-                new ConditionNode(() => npc.damageReceived),
+                new ConditionNode(() => npc.damageReceived && npc.lastKnownPlayerPos != Vector3.zero),
                 new Selector(new List<Node> {
                     new Timeout(new ActionNode(() => {
                         npc.currentAction = BossAction.Search;
                         npc.currentState = "Combat";
-                        steering.Wander();
+                        npc.Search();
                         return NodeStatus.RUNNING;
                     }), npc.searchDuration),
 
@@ -160,7 +147,7 @@ public class BossBehavior : MonoBehaviour
             {
                 npc.currentState = "Following Boss";
                 npc.currentAction = BossAction.Wandering;
-            
+
                 float distToBoss = Vector3.Distance(transform.position, npc.bossTransform.position);
             
                 // CHANGE THIS LINE: Use the API variable instead of 4f

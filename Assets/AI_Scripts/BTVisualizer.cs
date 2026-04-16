@@ -4,14 +4,15 @@ using System.Collections.Generic;
 
 public class BTVisualizer : MonoBehaviour
 {
-    public BossController npc;
+    public NPCController npc;
 
     [System.Serializable]
     public struct ActionUI
     {
         public BossAction actionEnum;
         public Image box;
-        public GameObject lineParent; // Drag the Empty Parent that holds | and _ here
+        public GameObject lineParent;
+        [HideInInspector] public Image[] cachedLineImages; // Added for caching
     }
 
     [System.Serializable]
@@ -19,7 +20,8 @@ public class BTVisualizer : MonoBehaviour
     {
         public string stateName;
         public Image stateBox;
-        public GameObject mainLineParent; // Line from Root to State
+        public GameObject mainLineParent;
+        [HideInInspector] public Image[] cachedMainLineImages; // Added for caching
         public List<ActionUI> actions;
     }
 
@@ -27,60 +29,69 @@ public class BTVisualizer : MonoBehaviour
     public Color activeColor = Color.green;
     public Color inactiveColor = new Color(0.2f, 0.2f, 0.2f, 0.8f);
 
-    void Update()
+    private string lastState;
+    private BossAction lastAction;
+
+    void Start()
     {
-        ResetAll();
-
-        foreach (var group in stateGroups)
+        // Cache all images once at the start so we NEVER call GetComponentsInChildren in Update
+        for (int i = 0; i < stateGroups.Count; i++)
         {
-            if (npc.currentState == group.stateName)
-            {
-                // Highlight State
-                if (group.stateBox) group.stateBox.color = activeColor;
-                SetObjectColor(group.mainLineParent, activeColor);
+            var group = stateGroups[i];
+            if (group.mainLineParent)
+                group.cachedMainLineImages = group.mainLineParent.GetComponentsInChildren<Image>();
 
-                // Highlight Action
-                foreach (var actionUI in group.actions)
-                {
-                    if (npc.currentAction == actionUI.actionEnum)
-                    {
-                        if (actionUI.box) actionUI.box.color = activeColor;
-                        SetObjectColor(actionUI.lineParent, activeColor);
-                        break;
-                    }
-                }
-                break;
+            for (int j = 0; j < group.actions.Count; j++)
+            {
+                var action = group.actions[j];
+                if (action.lineParent)
+                    action.cachedLineImages = action.lineParent.GetComponentsInChildren<Image>();
+
+                group.actions[j] = action;
             }
+            stateGroups[i] = group;
         }
     }
 
-    void ResetAll()
+    void Update()
+    {
+        if (npc == null) return;
+
+        // ONLY update if something actually changed
+        if (npc.currentState == lastState && npc.currentAction == lastAction) return;
+
+        lastState = npc.currentState;
+        lastAction = npc.currentAction;
+
+        UpdateVisuals();
+    }
+
+    void UpdateVisuals()
     {
         foreach (var group in stateGroups)
         {
-            if (group.stateBox) group.stateBox.color = inactiveColor;
-            SetObjectColor(group.mainLineParent, inactiveColor);
+            bool isStateActive = (npc.currentState == group.stateName);
+
+            // Set State Box
+            if (group.stateBox) group.stateBox.color = isStateActive ? activeColor : inactiveColor;
+
+            // Set State Lines
+            SetCachedColor(group.cachedMainLineImages, isStateActive ? activeColor : inactiveColor);
 
             foreach (var actionUI in group.actions)
             {
-                if (actionUI.box) actionUI.box.color = inactiveColor;
-                SetObjectColor(actionUI.lineParent, inactiveColor);
+                bool isActionActive = isStateActive && (npc.currentAction == actionUI.actionEnum);
+
+                if (actionUI.box) actionUI.box.color = isActionActive ? activeColor : inactiveColor;
+                SetCachedColor(actionUI.cachedLineImages, isActionActive ? activeColor : inactiveColor);
             }
         }
     }
 
-    // This is the "Magic" function that colors both parts of the L-shape
-    void SetObjectColor(GameObject parent, Color color)
+    void SetCachedColor(Image[] images, Color color)
     {
-        if (parent == null) return;
-
-        // If the parent itself has an Image, color it
-        Image mainImg = parent.GetComponent<Image>();
-        if (mainImg != null) mainImg.color = color;
-
-        // Color all children (the | and the _)
-        Image[] childImages = parent.GetComponentsInChildren<Image>();
-        foreach (Image img in childImages)
+        if (images == null) return;
+        foreach (Image img in images)
         {
             img.color = color;
         }
