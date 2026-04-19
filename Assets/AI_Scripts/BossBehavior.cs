@@ -8,6 +8,254 @@ public class BossBehavior : MonoBehaviour
     private Node rootNode;
     private Transform playerTransform;
 
+    public enum TreeComplexityMode
+    {
+        BaselineFlat, 
+        OriginalLogic,
+        ComplexDeep  
+    }
+
+    [Header("Tree Complexity Testing")]
+    public TreeComplexityMode complexityMode = TreeComplexityMode.OriginalLogic;
+
+    [Tooltip("Artificial depth layers for ComplexDeep mode.")]
+    public int artificialDepth = 50;
+
+    [Header("Tick Rate Testing")]
+    public float tickInterval = 0f;
+    private float timeSinceLastTick = 0f;
+
+
+    void Start()
+    {
+        npc = GetComponent<NPCController>();
+        steering = GetComponent<SteeringAgent>();
+
+        GameObject playerObj = GameObject.FindWithTag("Player");
+        if (playerObj != null) playerTransform = playerObj.transform;
+
+        // Switch statement to build the tree
+        switch (complexityMode)
+        {
+            case TreeComplexityMode.BaselineFlat:
+                rootNode = BuildBaselineTree();
+                break;
+            case TreeComplexityMode.ComplexDeep:
+                rootNode = BuildComplexTree();
+                break;
+            case TreeComplexityMode.OriginalLogic:
+            default:
+                rootNode = GetActualBossLogic();
+                break;
+        }
+    }
+
+    void Update()
+    {
+        if (npc != null && npc.isDead)
+        {
+            npc.currentState = "DEFEATED";
+            npc.currentAction = BossAction.Dead;
+            return;
+        }
+
+        if (rootNode != null)
+        {
+            if (tickInterval <= 0f)
+            {
+                rootNode.Tick();
+            }
+            else
+            {
+                timeSinceLastTick += Time.deltaTime;
+                if (timeSinceLastTick >= tickInterval)
+                {
+                    rootNode.Tick();
+                    timeSinceLastTick = 0f; 
+                }
+            }
+        }
+    }
+
+    private Node BuildBaselineTree()
+    {
+        //  3 nodes only   
+        return new Selector(new List<Node> {
+            new Sequence(new List<Node> {
+                new ConditionNode(() => npc.playerVisible),
+                new ActionNode(() => {
+                    steering.Seek(playerTransform.position);
+                    return NodeStatus.RUNNING;
+                })
+            }),
+            new ActionNode(() => {
+                steering.Wander();
+                return NodeStatus.RUNNING;
+            })
+        });
+    }
+
+    private Node BuildComplexTree()
+    {
+        //Get the initial game logic
+        Node coreGameLogic = GetActualBossLogic();
+
+        // forces the CPU to recursively travel down many many layers every single frame?
+        Node deepTree = coreGameLogic;
+        for (int i = 0; i < artificialDepth; i++)
+        {
+            deepTree = new Sequence(new List<Node> {
+                // dummy condition
+                new ConditionNode(() => true),
+                new Repeater(deepTree, 1)
+            });
+        }
+
+        return deepTree;
+    }
+
+    // =========================================
+    // ORIGINAL BOSS LOGIC
+    // ==========================================
+    private Node GetActualBossLogic()
+    {
+        return new Selector(new List<Node>
+        {
+            // 1. SURVIVAL BRANCH
+            new Sequence(new List<Node> {
+                new ConditionNode(() => npc.isBoss && npc.NpcHealth <= npc.lowHealthThreshold && !npc.beenToSafeArea),
+                new Selector(new List<Node> {
+                    new Sequence(new List<Node> {
+                        new ConditionNode(() => Vector3.Distance(transform.position, npc.safeAreaPosition) > 2.5f),
+                        new ActionNode(() => {
+                            npc.currentState = "Survival";
+                            npc.currentAction = BossAction.Retreat;
+                            steering.Seek(npc.safeAreaPosition);
+                            return NodeStatus.RUNNING;
+                        })
+                    }),
+                    new Sequence(new List<Node> {
+                        new ActionNode(() => {
+                            npc.CallBackup();
+                            return NodeStatus.SUCCESS;
+                        }),
+                        new ActionNode(() => {
+                            npc.currentState = "Survival";
+                            npc.currentAction = BossAction.Upgrade;
+                            steering.Stop();
+                            if (!npc.isUpgraded) npc.PerformUpgrade();
+                            return NodeStatus.RUNNING;
+                        }),
+                    }),
+                    new ActionNode(() => {
+                        npc.currentState = "Survival";
+                        npc.currentAction = BossAction.Upgrade;
+                        steering.Stop();
+                        if (!npc.isUpgraded) npc.PerformUpgrade();
+                        return NodeStatus.RUNNING;
+                    }),
+                })
+            }),
+
+            // 2. MONEY BRANCH
+            new Sequence(new List<Node> {
+                new ConditionNode(() => npc.moneyVisible && npc.NpcCash < npc.cashTarget),
+                new ActionNode(() => {
+                    npc.currentState = "Money";
+                    npc.currentAction = BossAction.TrackMoney;
+                    npc.TrackMoney();
+                    return NodeStatus.RUNNING;
+                })
+            }),
+
+            // 3. COMBAT BRANCH
+            new Selector(new List<Node> {
+                new Sequence(new List<Node> {
+                    new ConditionNode(() => npc.playerVisible),
+                    new ActionNode(() => { npc.currentState = "Combat"; return NodeStatus.SUCCESS; }),
+                    new Selector(new List<Node> {
+                        new Sequence(new List<Node> {
+                            new ConditionNode(() => npc.playerDistance <= npc.meleeWeaponRange),
+                            new ActionNode(() => {
+                                npc.HandleMovementLogic();
+                                return NodeStatus.SUCCESS;
+                            }),
+                            new Selector(new List<Node> {
+                                new Cooldown(new ActionNode(() => {
+                                    npc.currentAction = BossAction.Attack;
+                                    npc.DealDamageToPlayer();
+                                    return NodeStatus.SUCCESS;
+                                }), npc.attackCooldown),
+                                new ActionNode(() => NodeStatus.SUCCESS)
+                            })
+                        }),
+                        new ActionNode(() => {
+                            npc.currentAction = BossAction.Chase;
+                            steering.Seek(playerTransform.position);
+                            return NodeStatus.RUNNING;
+                        })
+                    })
+                }),
+
+                new Sequence(new List<Node> {
+                    new ConditionNode(() => npc.damageReceived && npc.lastKnownPlayerPos != Vector3.zero),
+                    new Selector(new List<Node> {
+                        new Timeout(new ActionNode(() => {
+                            npc.currentAction = BossAction.Search;
+                            npc.currentState = "Combat";
+                            npc.Search();
+                            return NodeStatus.RUNNING;
+                        }), npc.searchDuration),
+                        new ActionNode(() => {
+                            npc.damageReceived = false;
+                            return NodeStatus.SUCCESS;
+                        })
+                    })
+                })
+            }), 
+            
+            // 4. PATROL / FOLLOW BRANCH
+            new Sequence(new List<Node> {
+                new Repeater(new ActionNode(() => {
+                if (!npc.isBoss && npc.bossTransform != null)
+                {
+                    npc.currentState = "Following Boss";
+                    npc.currentAction = BossAction.Wandering;
+                    float distToBoss = Vector3.Distance(transform.position, npc.bossTransform.position);
+
+                    if (distToBoss > npc.followDistance)
+                    {
+                        steering.Seek(npc.bossTransform.position);
+                    }
+                    else
+                    {
+                        steering.Stop();
+                    }
+                    return NodeStatus.RUNNING;
+                }
+                else
+                {
+                    npc.currentState = "Patrol";
+                    npc.currentAction = BossAction.Wandering;
+                    steering.Wander();
+                    return NodeStatus.RUNNING;
+                }
+                }), -1)
+            })
+        });
+    }
+}
+
+/*using UnityEngine;
+using System.Collections.Generic;
+
+public class BossBehavior : MonoBehaviour
+{
+    private NPCController npc;
+    private SteeringAgent steering;
+    private Node rootNode;
+    private Transform playerTransform;
+
     void Start()
     {
         npc = GetComponent<NPCController>();
@@ -197,3 +445,4 @@ public class BossBehavior : MonoBehaviour
     }
 
 }
+*/
