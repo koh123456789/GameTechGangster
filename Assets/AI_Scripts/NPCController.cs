@@ -45,6 +45,7 @@ public class NPCController : MonoBehaviour
     [SerializeField] private float originalRangedDamage;
     [SerializeField] private float originalMeleeRange;
     [SerializeField] private float originalHealth;
+    public float CurrentAttackRange => isUpgraded ? rangedWeaponRange : meleeWeaponRange;
 
 
     [Header("Sensing Settings")]
@@ -224,8 +225,6 @@ public class NPCController : MonoBehaviour
                 moneyVisible = false;
             }
 
-            // ALWAYS check player line of sight so he doesn't "forget" the player
-            UpdatePlayerLineOfSight(eyePos);
         }
 
         UpdatePlayerLineOfSight(eyePos);
@@ -330,8 +329,7 @@ public class NPCController : MonoBehaviour
         isUpgraded = true;
         NpcHealth = 100f;
 
-        // Set stats once here instead of checking every frame in Update
-        meleeWeaponRange = rangedWeaponRange;
+        // Set stats once here instead of checking every frame in Update        
 
         if (meleeWeapon) meleeWeapon.SetActive(false);
         if (rangedWeapon) rangedWeapon.SetActive(true);
@@ -363,6 +361,11 @@ public class NPCController : MonoBehaviour
     {
         // Combined Null Check
         if (projectilePrefab == null || firePoint == null || playerRef == null) return;
+
+        if (muzzleFlash != null)
+        {
+            muzzleFlash.Play();
+        }
 
         Vector3 dir = (playerRef.transform.position + Vector3.up - firePoint.position).normalized;
         GameObject bullet = Instantiate(projectilePrefab, firePoint.position, Quaternion.LookRotation(dir));
@@ -428,9 +431,9 @@ public class NPCController : MonoBehaviour
 
         // We want the boss to stop slightly before the absolute edge of his range
         // Example: If range is 5m, he stops at 4m so the player is definitely hittable.
-        float stopDistance = meleeWeaponRange * 0.8f;
+        float stopDistance = CurrentAttackRange * 0.8f;
 
-        if (playerDistance > meleeWeaponRange)
+        if (playerDistance > CurrentAttackRange)
         {
             // Player is escaping! Move closer.
             steering.maxSpeed = isUpgraded ? 4f : 5f; // Faster in Phase 1

@@ -134,27 +134,30 @@ public class BossBehavior : MonoBehaviour
                             return NodeStatus.RUNNING;
                         })
                     }),
+                     // SUB-BRANCH B: Close enough to the Safe Area!
                     new Sequence(new List<Node> {
                         new ActionNode(() => {
-                            npc.CallBackup();
-                            return NodeStatus.SUCCESS;
-                        }),
-                        new ActionNode(() => {
-                            npc.currentState = "Survival";
+                            // 1. Label the state for your HUD
+                            npc.currentState = "Survival (Upgrading)";
                             npc.currentAction = BossAction.Upgrade;
+                            
+                            // 2. Stop moving so the animation looks good
                             steering.Stop();
-                            if (!npc.isUpgraded) npc.PerformUpgrade();
-                            return NodeStatus.RUNNING;
-                        }),
-                    }),
-                    new ActionNode(() => {
-                        npc.currentState = "Survival";
-                        npc.currentAction = BossAction.Upgrade;
-                        steering.Stop();
-                        if (!npc.isUpgraded) npc.PerformUpgrade();
-                        return NodeStatus.RUNNING;
-                    }),
-                })
+                            
+                            // 3. Trigger the "Instant" actions
+                            npc.PerformUpgrade(); // Restores HP and swaps weapons
+                            npc.CallBackup();     // Spawns minions
+                            
+                            // 4. THE KEY: Flip the condition so this branch fails next tick
+                            npc.beenToSafeArea = true;
+                    
+                            Debug.Log("Boss: Safe area reached, upgraded, and backup called.");
+                            
+                            // 5. SUCCESS tells the tree to restart and pick a new branch (Combat)
+                            return NodeStatus.SUCCESS;
+                        })
+                    })
+                 })
             }),
 
             // 2. MONEY BRANCH
@@ -175,7 +178,7 @@ public class BossBehavior : MonoBehaviour
                     new ActionNode(() => { npc.currentState = "Combat"; return NodeStatus.SUCCESS; }),
                     new Selector(new List<Node> {
                         new Sequence(new List<Node> {
-                            new ConditionNode(() => npc.playerDistance <= npc.meleeWeaponRange),
+                            new ConditionNode(() => npc.playerDistance <= npc.CurrentAttackRange),
                             new ActionNode(() => {
                                 npc.HandleMovementLogic();
                                 return NodeStatus.SUCCESS;
