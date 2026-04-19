@@ -14,7 +14,7 @@ public class BossHUD : MonoBehaviour
 
     void Update()
     {
-        if (npc == null || npc.isDead) return;
+        if (npc == null) return;
 
         UpdatePriorityPanel();
         UpdateStatsPanel();

@@ -17,6 +17,7 @@ public class PlayerAttack : MonoBehaviour
     public AudioSource audioSource;
     public AudioClip shootSound;
 
+    public ParticleSystem muzzleFlash;
     private float nextFireTime;
 
     void Update()
@@ -31,6 +32,11 @@ public class PlayerAttack : MonoBehaviour
 
     void Shoot()
     {
+        if (muzzleFlash != null)
+        {
+            muzzleFlash.Play();
+        }
+
         // 1. Calculate the target point (center of screen)
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 targetPoint;
